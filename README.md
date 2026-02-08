@@ -1,5 +1,7 @@
 # Shipments
 
+[![Android CI](https://github.com/dustinmcafee/AndroidAssignmentProblem/actions/workflows/android.yml/badge.svg?branch=master)](https://github.com/dustinmcafee/AndroidAssignmentProblem/actions/workflows/android.yml)
+
 Android app that optimally assigns drivers to shipments using the Assignment Problem Solution algorithms.
 
 Given a list of drivers and shipment addresses, the app computes a suitability score for every possible driver-shipment pair, then finds the 1-to-1 assignment that maximizes the total score.
