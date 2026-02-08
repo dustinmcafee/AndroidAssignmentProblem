@@ -75,4 +75,7 @@ dependencies {
 
     // JGraphT (graph algorithms)
     implementation("org.jgrapht:jgrapht-core:1.5.2")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
 }

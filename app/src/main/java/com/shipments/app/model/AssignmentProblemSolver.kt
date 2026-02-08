@@ -6,6 +6,7 @@ import org.jgrapht.alg.shortestpath.BellmanFordShortestPath
 import org.jgrapht.graph.DefaultWeightedEdge
 import org.jgrapht.graph.SimpleDirectedWeightedGraph
 import org.jgrapht.graph.SimpleWeightedGraph
+import java.math.BigDecimal
 
 /**
  * Solves the assignment problem: given an NxN score matrix, find the 1-to-1
@@ -317,6 +318,10 @@ class AssignmentProblemSolver {
      * Easier to follow than the O(n^3) version: reduce rows/columns to create
      * zeros, match on zeros, adjust matrix if matching is incomplete, repeat.
      *
+     * Uses BigDecimal to avoid floating point drift. The repeated subtract/add
+     * adjustments cause Double values to accumulate rounding errors, which
+     * breaks zero comparisons and produces wrong results at 100x100 scale.
+     *
      * @param profitMatrix NxN matrix where entry (i, j) is the score for assigning driver i to shipment j.
      * @return IntArray where the value at index i is the shipment index assigned to driver i.
      */
@@ -326,18 +331,20 @@ class AssignmentProblemSolver {
 
         // Flip to minimization: subtract each score from the max so high profit = low cost
         val maxVal = profitMatrix.maxOf { it.max() }
-        val cost = Array(n) { i -> DoubleArray(n) { j -> maxVal - profitMatrix[i][j] } }
+        val cost = Array(n) { i ->
+            Array(n) { j -> BigDecimal.valueOf(maxVal - profitMatrix[i][j]) }
+        }
 
         // Row reduction — make each row's minimum zero
         for (i in 0 until n) {
             val rowMin = cost[i].min()
-            for (j in 0 until n) cost[i][j] -= rowMin
+            for (j in 0 until n) cost[i][j] = cost[i][j] - rowMin
         }
 
         // Column reduction — make each column's minimum zero
         for (j in 0 until n) {
             val colMin = (0 until n).minOf { i -> cost[i][j] }
-            for (i in 0 until n) cost[i][j] -= colMin
+            for (i in 0 until n) cost[i][j] = cost[i][j] - colMin
         }
 
         val rowMatch = IntArray(n) { -1 }  // rowMatch[i] = shipment assigned to driver i (-1 = unmatched)
@@ -349,7 +356,7 @@ class AssignmentProblemSolver {
             for (i in 0 until n) {
                 if (rowMatch[i] != -1) continue
                 for (j in 0 until n) {
-                    if (cost[i][j] == 0.0 && colMatch[j] == -1) {
+                    if (cost[i][j].compareTo(BigDecimal.ZERO) == 0 && colMatch[j] == -1) {
                         rowMatch[i] = j
                         colMatch[j] = i
                         break
@@ -375,7 +382,7 @@ class AssignmentProblemSolver {
                 for (i in 0 until n) {
                     if (!reachableRow[i]) continue
                     for (j in 0 until n) {
-                        if (!reachableCol[j] && cost[i][j] == 0.0) {
+                        if (!reachableCol[j] && cost[i][j].compareTo(BigDecimal.ZERO) == 0) {
                             reachableCol[j] = true
                             changed = true
                         }
@@ -399,7 +406,7 @@ class AssignmentProblemSolver {
             // Step 1: Find the smallest cost among cells that connect a
             //         reachable driver to an unreachable shipment. These are
             //         the "closest to zero" cells that could become new options.
-            var minUncovered = Double.MAX_VALUE
+            var minUncovered = BigDecimal.valueOf(Double.MAX_VALUE)
             for (i in 0 until n) {
                 if (!reachableRow[i]) continue
                 for (j in 0 until n) {
@@ -420,8 +427,8 @@ class AssignmentProblemSolver {
             //   Unreachable driver + unreachable shipment → neither applies, no change
             for (i in 0 until n) {
                 for (j in 0 until n) {
-                    if (reachableRow[i]) cost[i][j] -= minUncovered
-                    if (reachableCol[j]) cost[i][j] += minUncovered
+                    if (reachableRow[i]) cost[i][j] = cost[i][j] - minUncovered
+                    if (reachableCol[j]) cost[i][j] = cost[i][j] + minUncovered
                 }
             }
 
