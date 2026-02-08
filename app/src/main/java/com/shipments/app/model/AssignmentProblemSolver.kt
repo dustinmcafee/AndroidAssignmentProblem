@@ -317,6 +317,13 @@ class AssignmentProblemSolver {
      * Easier to follow than the O(n^3) version: reduce rows/columns to create
      * zeros, match on zeros, adjust matrix if matching is incomplete, repeat.
      *
+     * Known limitation: floating point drift from repeated matrix adjustments
+     * causes suboptimal results at large scale (100x100+). The other algorithms
+     * don't have this problem because they don't modify the cost matrix.
+     * Exact arithmetic (Long/BigDecimal) fixes correctness but makes the
+     * algorithm too slow — high-precision costs require millions of tiny
+     * adjustment rounds to converge.
+     *
      * @param profitMatrix NxN matrix where entry (i, j) is the score for assigning driver i to shipment j.
      * @return IntArray where the value at index i is the shipment index assigned to driver i.
      */
@@ -364,29 +371,28 @@ class AssignmentProblemSolver {
             // the cost matrix to adjust so that new zero-cost entries appear.
             // To do that, mark every driver and shipment that's connected to an
             // unmatched driver through a chain of zero-cost entries.
+            //
+            // BFS from unmatched drivers through zero-cost edges. Each driver is
+            // processed once, scanning its row in O(n), so total is O(n^2).
             val reachableRow = BooleanArray(n)
             val reachableCol = BooleanArray(n)
+            val queue = ArrayDeque<Int>()
             for (i in 0 until n) {
-                if (rowMatch[i] == -1) reachableRow[i] = true
-            }
-            var changed = true
-            while (changed) {
-                changed = false
-                for (i in 0 until n) {
-                    if (!reachableRow[i]) continue
-                    for (j in 0 until n) {
-                        if (!reachableCol[j] && cost[i][j] == 0.0) {
-                            reachableCol[j] = true
-                            changed = true
-                        }
-                    }
+                if (rowMatch[i] == -1) {
+                    reachableRow[i] = true
+                    queue.addLast(i)
                 }
+            }
+            while (queue.isNotEmpty()) {
+                val i = queue.removeFirst()
                 for (j in 0 until n) {
-                    if (!reachableCol[j]) continue
-                    val r = colMatch[j]
-                    if (r != -1 && !reachableRow[r]) {
-                        reachableRow[r] = true
-                        changed = true
+                    if (!reachableCol[j] && cost[i][j] == 0.0) {
+                        reachableCol[j] = true
+                        val r = colMatch[j]
+                        if (r != -1 && !reachableRow[r]) {
+                            reachableRow[r] = true
+                            queue.addLast(r)
+                        }
                     }
                 }
             }
